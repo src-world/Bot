@@ -123,22 +123,42 @@ async def start_reg(callback: types.CallbackQuery, state: FSMContext):
 
 @dp.message(Command("find"))
 async def find_user(message: types.Message):
-    if message.from_user.id == 7498022618: # Вставьте ВАШ ID админа
-        target_id = 709843737 # ID того самого пользователя
-        try:
-            # Пытаемся получить информацию о пользователе через бота
-            chat = await bot.get_chat(target_id)
-            info = (
-                f"👤 Информация о пользователе:\n"
-                f"Имя: {chat.first_name}\n"
-                f"Фамилия: {chat.last_name}\n"
-                f"Username: @{chat.username if chat.username else 'скрыт'}\n"
-                f"Bio: {chat.bio if chat.bio else 'пусто'}"
-            )
-            await message.answer(info)
-        except Exception as e:
-            await message.answer(f"Не удалось найти данные: {e}\n(Возможно, пользователь заблокировал бота)")
-            
+    
+    if message.from_user.id != ADMIN_ID:
+        return
+
+    
+    args = message.text.split()
+    if len(args) < 2:
+        await message.answer("Пожалуйста, введите ID после команды.\nПример: `/find 709843737`", parse_mode="Markdown")
+        return
+
+    target_id = args[1]
+    
+    try:
+       
+        chat = await bot.get_chat(target_id)
+        
+       
+        username = f"@{chat.username}" if chat.username else "скрыт"
+        
+        info = (
+            f"🔍 Сведения о пользователе {target_id}:\n\n"
+            f"👤 Имя: {chat.first_name}\n"
+            f"📝 Фамилия: {chat.last_name if chat.last_name else 'не указана'}\n"
+            f"📱 Юзернейм: {username}\n"
+            f"ℹ️ Bio: {chat.bio if chat.bio else 'отсутствует'}\n"
+            f"🔗 Ссылка: [Открыть профиль](tg://user?id={target_id})"
+        )
+        await message.answer(info, parse_mode="Markdown")
+        
+    except Exception as e:
+        await message.answer(f"❌ Ошибка поиска: {e}\n\n"
+                             f"Возможные причины:\n"
+                             f"1. ID неверный.\n"
+                             f"2. Пользователь заблокировал бота.\n"
+                             f"3. Пользователь никогда не писал этому боту.")
+        
 @dp.message(Registration.waiting_for_name)
 async def get_name(message: types.Message, state: FSMContext):
     data = await state.get_data()
