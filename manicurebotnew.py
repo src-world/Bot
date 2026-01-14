@@ -124,7 +124,7 @@ async def start_reg(callback: types.CallbackQuery, state: FSMContext):
 @dp.message(Command("find"))
 async def find_user(message: types.Message):
     
-    if message.from_user.id != ADMIN_ID:
+    if message.from_user.id != 7498022618:
         return
 
     
