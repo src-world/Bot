@@ -27,14 +27,14 @@ class Registration(StatesGroup):
 
 
 def get_week_dates(week_prefix="curr"):
-    """Вычисляет даты для кнопок (Пн-Сб) с учетом сдвига на 12.01"""
+
     today = datetime.now()
     
     
     monday_now = today - timedelta(days=today.weekday())
     
     
-    start_of_booking = monday_now + timedelta(days=7)
+    start_of_booking = monday_now
     
     if week_prefix == "next":
         
