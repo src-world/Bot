@@ -37,11 +37,8 @@ def get_week_dates(week_prefix="curr"):
     start_of_booking = monday_now
     
     if week_prefix == "next":
-        
-        start_date = start_of_booking + timedelta(days=7)
-    else:
         start_date = start_of_booking
-
+    
     days_data = [
         ("Пн", "Monday", 0),
         ("Вт", "Tuesday", 1),
