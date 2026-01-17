@@ -190,7 +190,15 @@ async def start_reg(callback: types.CallbackQuery, state: FSMContext):
         await callback.answer("У вас уже есть активная запись!", show_alert=True)
         return
     await callback.message.delete()
-    sent_msg = await callback.message.answer("Введите ваше Имя и Фамилию 😊")
+    
+    # Используем HTML разметку
+    text = (
+        "Как к вам обращаться? ✨\n\n"
+        "Напишите, пожалуйста, ваше имя и фамилию одним сообщением.\n\n"
+        "Пример: Анна Иванова"
+    )
+    
+    sent_msg = await callback.message.answer(text, parse_mode="HTML")
     await state.update_data(msg_to_delete=sent_msg.message_id)
     await state.set_state(Registration.waiting_for_name)
 
