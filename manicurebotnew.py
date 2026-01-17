@@ -168,6 +168,21 @@ class Registration(StatesGroup):
     waiting_for_name = State()
 
 # --- ОБРАБОТЧИКИ ---
+@dp.message(CommandStart())
+async def cmd_start(message: Message):
+    # Используем HTML разметку для жирного шрифта
+    full_name = message.from_user.first_name
+    welcome_text = (
+        f"Рады видеть вас, {full_name}! ✨\n\n"
+        f"Пожалуйста, выберите действие в меню:"
+    )
+    
+    # Кнопки с эмодзи в начале
+    builder = InlineKeyboardBuilder()
+    builder.row(types.InlineKeyboardButton(text="📝 Записаться", callback_data="register"))
+    builder.row(types.InlineKeyboardButton(text="🔎 Моя запись", callback_data="check"))
+    
+    await message.answer(welcome_text, reply_markup=builder.as_markup(), parse_mode="HTML")
 
 @dp.callback_query(F.data == "register")
 async def start_reg(callback: types.CallbackQuery, state: FSMContext):
