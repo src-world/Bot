@@ -232,7 +232,7 @@ async def delete_booking(callback: types.CallbackQuery):
 async def check_booking(callback: types.CallbackQuery):
     record = db_get_user_record(callback.from_user.id)
     if record:
-        await callback.message.edit_text(f"<b>Ваша запись:</b> 🔎\n\n👤 {record[0]}\n📅 {record[1]}\n⏰ {record[3]}", 
+        await callback.message.edit_text(f"<b>Ваша запись:</b> 🔎\n\n👤 {record[0]}\n{record[1]}\n⏰ {record[3]}", 
                                          reply_markup=last_menu_kb(), parse_mode="HTML")
     else:
         await callback.answer("Вы еще не записаны 🤷‍♂️", show_alert=True)
