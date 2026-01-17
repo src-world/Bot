@@ -183,7 +183,7 @@ async def get_name(message: types.Message, state: FSMContext):
 @dp.callback_query(F.data.startswith("week_"))
 async def switch_week(callback: types.CallbackQuery):
     week_prefix = callback.data.split("_")[1]
-    await callback.message.edit_text("<b>Выберите день для записи:</b>", reply_markup=days_menu_kb(week_prefix), parse_mode="HTML")
+    await callback.message.edit_text(f"<b>Приятно познакомиться, {message.text}!</b> 😊\n\nВыберите подходящий <b>день для записи:</b>", reply_markup=days_menu_kb(week_prefix), parse_mode="HTML")
 
 @dp.callback_query(F.data.startswith("day_"))
 async def select_day(callback: types.CallbackQuery, state: FSMContext):
