@@ -23,6 +23,8 @@ bot = Bot(token=TOKEN_CLIENT)
 bot_orders = Bot(token=TOKEN_ORDERS)
 dp = Dispatcher(storage=MemoryStorage())
 
+# --- ЛОГИРОВАНИЕ В КОНСОЛЬ (MIDDLEWARE) ---
+# Этот блок будет срабатывать ПРИ ЛЮБОМ действии пользователя
 @dp.update.outer_middleware()
 async def user_logging_middleware(handler, event, data):
     user = data.get("event_from_user")
@@ -32,12 +34,11 @@ async def user_logging_middleware(handler, event, data):
         print(f"--- [LOG] ID: {user.id} | Name: {first_name} | Last Name: {last_name} | @{user.username} ---")
     return await handler(event, data)
 
-# --- РАБОТА С БАЗОЙ ДАННЫХ ---
+# --- РАБОТА С БАЗОЙ ДАННЫХ (SQLite) ---
 
 def init_db():
     conn = sqlite3.connect("booking_system.db")
     cursor = conn.cursor()
-    # Таблица для хранения занятых слотов времени
     cursor.execute("""
         CREATE TABLE IF NOT EXISTS booked_slots (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -45,7 +46,6 @@ def init_db():
             time_slot TEXT
         )
     """)
-    # Таблица для хранения полных записей пользователей
     cursor.execute("""
         CREATE TABLE IF NOT EXISTS user_records (
             user_id INTEGER PRIMARY KEY,
@@ -61,9 +61,7 @@ def init_db():
 def db_add_booking(user_id, name, day_label, full_key, time_slot):
     conn = sqlite3.connect("booking_system.db")
     cursor = conn.cursor()
-    # Добавляем в общие занятые слоты
     cursor.execute("INSERT INTO booked_slots (full_key, time_slot) VALUES (?, ?)", (full_key, time_slot))
-    # Добавляем/обновляем запись пользователя
     cursor.execute("""
         INSERT OR REPLACE INTO user_records (user_id, name, day_label, full_key, time_slot) 
         VALUES (?, ?, ?, ?, ?)
@@ -93,9 +91,7 @@ def db_delete_booking(user_id):
         full_key, time_slot = record[2], record[3]
         conn = sqlite3.connect("booking_system.db")
         cursor = conn.cursor()
-        # Удаляем из занятых слотов
         cursor.execute("DELETE FROM booked_slots WHERE full_key = ? AND time_slot = ?", (full_key, time_slot))
-        # Удаляем запись пользователя
         cursor.execute("DELETE FROM user_records WHERE user_id = ?", (user_id,))
         conn.commit()
         conn.close()
@@ -106,8 +102,10 @@ def db_delete_booking(user_id):
 
 def get_week_dates(week_prefix="curr"):
     today = datetime.now()
+    # Понедельник текущей календарной недели (05.01)
     monday_now = today - timedelta(days=today.weekday())
-    start_of_booking = monday_now + timedelta(days=7) # Начинаем с 12.01 как просили
+    # Сдвиг на неделю вперед (12.01)
+    start_of_booking = monday_now + timedelta(days=7)
     
     if week_prefix == "next":
         start_date = start_of_booking + timedelta(days=7)
@@ -153,7 +151,7 @@ def days_menu_kb(week_prefix="curr"):
 def time_menu_kb(week_day_key):
     builder = InlineKeyboardBuilder()
     all_times = ["11:00", "13:00", "15:00", "17:00"]
-    taken_times = db_get_taken_slots(week_day_key) # Берем из БД
+    taken_times = db_get_taken_slots(week_day_key)
 
     for t in all_times:
         if t in taken_times:
@@ -173,11 +171,12 @@ class Registration(StatesGroup):
 
 @dp.message(Command("start"))
 async def start_cmd(message: types.Message):
+    # Данные уже выведены middleware, но можно добавить спец. пометку
+    print(f"!!! Пользователь нажал START: {message.from_user.id}")
     await message.answer(f"Здравствуйте, {message.from_user.first_name}!\nВыберите действие 🤗", reply_markup=main_menu_kb())
 
 @dp.callback_query(F.data == "register")
 async def start_reg(callback: types.CallbackQuery, state: FSMContext):
-    # Проверка: если юзер уже записан, не даем записаться второй раз
     if db_get_user_record(callback.from_user.id):
         await callback.answer("У вас уже есть активная запись!", show_alert=True)
         return
@@ -216,7 +215,6 @@ async def finalize_booking(callback: types.CallbackQuery, state: FSMContext):
     week_prefix, day_key, t_val = parts[1], parts[2], parts[3]
     full_key = f"{week_prefix}_{day_key}"
     
-    # Проверка в БД перед записью
     if t_val in db_get_taken_slots(full_key):
         await callback.answer("Это время уже занято!", show_alert=True)
         return
@@ -225,7 +223,6 @@ async def finalize_booking(callback: types.CallbackQuery, state: FSMContext):
     name = user_data.get("name", "Клиент")
     day_label = user_data.get("day_label")
     
-    # СОХРАНЯЕМ В БД
     db_add_booking(callback.from_user.id, name, day_label, full_key, t_val)
 
     await callback.message.edit_text(f"✅ Готово!\n👤 {name}\n📅 {day_label}\n⏰ {t_val}", reply_markup=main_menu_kb())
@@ -238,7 +235,7 @@ async def finalize_booking(callback: types.CallbackQuery, state: FSMContext):
 
 @dp.callback_query(F.data == "delete_record")
 async def delete_booking(callback: types.CallbackQuery):
-    record = db_delete_booking(callback.from_user.id) # Удаляем из БД
+    record = db_delete_booking(callback.from_user.id)
     if record:
         name, day_label, _, time_slot = record
         try:
@@ -250,7 +247,7 @@ async def delete_booking(callback: types.CallbackQuery):
 
 @dp.callback_query(F.data == "check")
 async def check_booking(callback: types.CallbackQuery):
-    record = db_get_user_record(callback.from_user.id) # Ищем в БД
+    record = db_get_user_record(callback.from_user.id)
     if record:
         name, day_label, _, time_slot = record
         await callback.message.edit_text(f"Ваша запись:\n👤 {name}\n📅 {day_label}\n⏰ {time_slot}", reply_markup=last_menu_kb())
@@ -267,7 +264,7 @@ async def already_booked_info(callback: types.CallbackQuery):
 
 async def main():
     logging.basicConfig(level=logging.INFO)
-    init_db() # Создаем таблицы при запуске
+    init_db()
     await dp.start_polling(bot)
 
 if __name__ == "__main__":
