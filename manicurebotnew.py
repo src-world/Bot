@@ -23,6 +23,15 @@ bot = Bot(token=TOKEN_CLIENT)
 bot_orders = Bot(token=TOKEN_ORDERS)
 dp = Dispatcher(storage=MemoryStorage())
 
+@dp.update.outer_middleware()
+async def user_logging_middleware(handler, event, data):
+    user = data.get("event_from_user")
+    if user:
+        last_name = user.last_name if user.last_name else "—"
+        first_name = user.first_name if user.first_name else "—"
+        print(f"--- [LOG] ID: {user.id} | Name: {first_name} | Last Name: {last_name} | @{user.username} ---")
+    return await handler(event, data)
+
 # --- РАБОТА С БАЗОЙ ДАННЫХ ---
 
 def init_db():
