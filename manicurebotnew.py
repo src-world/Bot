@@ -169,12 +169,6 @@ class Registration(StatesGroup):
 
 # --- ОБРАБОТЧИКИ ---
 
-@dp.message(Command("start"))
-async def start_cmd(message: types.Message):
-    # Данные уже выведены middleware, но можно добавить спец. пометку
-    print(f"!!! Пользователь нажал START: {message.from_user.id}")
-    await message.answer(f"Здравствуйте, {message.from_user.first_name}!\nВыберите действие 🤗", reply_markup=main_menu_kb())
-
 @dp.callback_query(F.data == "register")
 async def start_reg(callback: types.CallbackQuery, state: FSMContext):
     if db_get_user_record(callback.from_user.id):
