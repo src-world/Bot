@@ -1,3 +1,4 @@
+
 import sqlite3
 from os import getenv
 import asyncio
@@ -24,7 +25,6 @@ bot_orders = Bot(token=TOKEN_ORDERS)
 dp = Dispatcher(storage=MemoryStorage())
 
 # --- ЛОГИРОВАНИЕ В КОНСОЛЬ (MIDDLEWARE) ---
-# Этот блок будет срабатывать ПРИ ЛЮБОМ действии пользователя
 @dp.update.outer_middleware()
 async def user_logging_middleware(handler, event, data):
     user = data.get("event_from_user")
@@ -39,22 +39,8 @@ async def user_logging_middleware(handler, event, data):
 def init_db():
     conn = sqlite3.connect("booking_system.db")
     cursor = conn.cursor()
-    cursor.execute("""
-        CREATE TABLE IF NOT EXISTS booked_slots (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            full_key TEXT,
-            time_slot TEXT
-        )
-    """)
-    cursor.execute("""
-        CREATE TABLE IF NOT EXISTS user_records (
-            user_id INTEGER PRIMARY KEY,
-            name TEXT,
-            day_label TEXT,
-            full_key TEXT,
-            time_slot TEXT
-        )
-    """)
+    cursor.execute("CREATE TABLE IF NOT EXISTS booked_slots (id INTEGER PRIMARY KEY AUTOINCREMENT, full_key TEXT, time_slot TEXT)")
+    cursor.execute("CREATE TABLE IF NOT EXISTS user_records (user_id INTEGER PRIMARY KEY, name TEXT, day_label TEXT, full_key TEXT, time_slot TEXT)")
     conn.commit()
     conn.close()
 
@@ -62,10 +48,7 @@ def db_add_booking(user_id, name, day_label, full_key, time_slot):
     conn = sqlite3.connect("booking_system.db")
     cursor = conn.cursor()
     cursor.execute("INSERT INTO booked_slots (full_key, time_slot) VALUES (?, ?)", (full_key, time_slot))
-    cursor.execute("""
-        INSERT OR REPLACE INTO user_records (user_id, name, day_label, full_key, time_slot) 
-        VALUES (?, ?, ?, ?, ?)
-    """, (user_id, name, day_label, full_key, time_slot))
+    cursor.execute("INSERT OR REPLACE INTO user_records VALUES (?, ?, ?, ?, ?)", (user_id, name, day_label, full_key, time_slot))
     conn.commit()
     conn.close()
 
@@ -88,23 +71,21 @@ def db_get_user_record(user_id):
 def db_delete_booking(user_id):
     record = db_get_user_record(user_id)
     if record:
-        full_key, time_slot = record[2], record[3]
         conn = sqlite3.connect("booking_system.db")
         cursor = conn.cursor()
-        cursor.execute("DELETE FROM booked_slots WHERE full_key = ? AND time_slot = ?", (full_key, time_slot))
+        cursor.execute("DELETE FROM booked_slots WHERE full_key = ? AND time_slot = ?", (record[2], record[3]))
         cursor.execute("DELETE FROM user_records WHERE user_id = ?", (user_id,))
         conn.commit()
         conn.close()
         return record
     return None
 
-# --- ЛОГИКА ДАТ ---
+# --- ЛОГИКА ДАТ (Дизайнерская версия) ---
 
 def get_week_dates(week_prefix="curr"):
     today = datetime.now()
-    # Понедельник текущей календарной недели (05.01)
     monday_now = today - timedelta(days=today.weekday())
-    # Сдвиг на неделю вперед (12.01)
+    # Старт со следующего понедельника (как в твоем примере)
     start_of_booking = monday_now + timedelta(days=7)
     
     if week_prefix == "next":
@@ -112,92 +93,78 @@ def get_week_dates(week_prefix="curr"):
     else:
         start_date = start_of_booking
 
-    days_data = [("Пн", "Monday", 0), ("Вт", "Tuesday", 1), ("Ср", "Wednesday", 2),
-                 ("Чт", "Thursday", 3), ("Пт", "Friday", 4), ("Сб", "Saturday", 5)]
-    
+    days_data = [("Пн", 0), ("Вт", 1), ("Ср", 2), ("Чт", 3), ("Пт", 4), ("Сб", 5)]
     formatted_days = []
-    for short_name, english_name, offset in days_data:
+    for short_name, offset in days_data:
         day_date = start_date + timedelta(days=offset)
         date_str = day_date.strftime("%d.%m") 
-        formatted_days.append({"label": f"({date_str}) {short_name}", "callback": f"day_{week_prefix}_{english_name}"})
+        formatted_days.append({
+            "label": f"🗓 {short_name}, {date_str}", 
+            "callback": f"day_{week_prefix}_{short_name}"
+        })
     return formatted_days
 
-# --- КЛАВИАТУРЫ ---
+# --- КЛАВИАТУРЫ (UI/UX Улучшения) ---
 
 def main_menu_kb():
     builder = InlineKeyboardBuilder()
-    builder.row(types.InlineKeyboardButton(text="Записаться 📝", callback_data="register"))
-    builder.row(types.InlineKeyboardButton(text="Посмотреть запись 👀", callback_data="check"))
+    builder.row(types.InlineKeyboardButton(text="📝 Записаться", callback_data="register"))
+    builder.row(types.InlineKeyboardButton(text="🔎 Моя запись", callback_data="check"))
     return builder.as_markup()
 
 def last_menu_kb():
     builder = InlineKeyboardBuilder()
-    builder.row(types.InlineKeyboardButton(text="Отменить запись ❌", callback_data="delete_record"))
-    builder.row(types.InlineKeyboardButton(text="« Назад в меню", callback_data="back_to_main"))
+    builder.row(types.InlineKeyboardButton(text="❌ Отменить запись", callback_data="delete_record"))
+    builder.row(types.InlineKeyboardButton(text="⬅️ Назад в меню", callback_data="back_to_main"))
     return builder.as_markup()
 
 def days_menu_kb(week_prefix="curr"):
     builder = InlineKeyboardBuilder()
     days = get_week_dates(week_prefix)
-    for d in days: builder.button(text=d["label"], callback_data=d["callback"])
+    for d in days:
+        builder.button(text=d["label"], callback_data=d["callback"])
     builder.adjust(2)
     if week_prefix == "curr":
-        builder.row(types.InlineKeyboardButton(text="Следующая неделя ➡️", callback_data="week_next"))
+        builder.row(types.InlineKeyboardButton(text="➡️ Следующая неделя", callback_data="week_next"))
     else:
         builder.row(types.InlineKeyboardButton(text="⬅️ Текущая неделя", callback_data="week_curr"))
-    builder.row(types.InlineKeyboardButton(text="« Назад в меню", callback_data="back_to_main"))
+    builder.row(types.InlineKeyboardButton(text="⬅️ Назад в меню", callback_data="back_to_main"))
     return builder.as_markup()
 
 def time_menu_kb(week_day_key):
     builder = InlineKeyboardBuilder()
     all_times = ["11:00", "13:00", "15:00", "17:00"]
     taken_times = db_get_taken_slots(week_day_key)
-
     for t in all_times:
         if t in taken_times:
-            builder.button(text=f"❌ {t}", callback_data="already_booked")
+            builder.button(text=f"🔒 {t}", callback_data="already_booked")
         else:
-            builder.button(text=t, callback_data=f"settime_{week_day_key}_{t}")
+            builder.button(text=f"⏰ {t}", callback_data=f"settime_{week_day_key}_{t}")
     builder.adjust(2)
     week_prefix = week_day_key.split("_")[0]
-    builder.row(types.InlineKeyboardButton(text="« Назад к дням", callback_data=f"week_{week_prefix}"))
+    builder.row(types.InlineKeyboardButton(text="⬅️ Назад к дням", callback_data=f"week_{week_prefix}"))
     return builder.as_markup()
 
-# --- СОСТОЯНИЯ ---
 class Registration(StatesGroup):
     waiting_for_name = State()
 
 # --- ОБРАБОТЧИКИ ---
+
 @dp.message(CommandStart())
-async def cmd_start(message: Message):
-    # Используем HTML разметку для жирного шрифта
-    full_name = message.from_user.first_name
+async def start_cmd(message: Message):
     welcome_text = (
-        f"Рады видеть вас, {full_name}! ✨\n\n"
-        f"Пожалуйста, выберите действие в меню:"
+        f"<b>Здравствуйте, {message.from_user.first_name}!</b> ✨\n\n"
+        f"Пожалуйста, выберите действие в меню ниже:"
     )
-    
-    # Кнопки с эмодзи в начале
-    builder = InlineKeyboardBuilder()
-    builder.row(types.InlineKeyboardButton(text="📝 Записаться", callback_data="register"))
-    builder.row(types.InlineKeyboardButton(text="🔎 Моя запись", callback_data="check"))
-    
-    await message.answer(welcome_text, reply_markup=builder.as_markup(), parse_mode="HTML")
+    await message.answer(welcome_text, reply_markup=main_menu_kb(), parse_mode="HTML")
 
 @dp.callback_query(F.data == "register")
 async def start_reg(callback: types.CallbackQuery, state: FSMContext):
     if db_get_user_record(callback.from_user.id):
-        await callback.answer("У вас уже есть активная запись!", show_alert=True)
+        await callback.answer("⚠️ У вас уже есть активная запись!", show_alert=True)
         return
     await callback.message.delete()
-    
-    # Используем HTML разметку
-    text = (
-        "Как к вам обращаться? ✨\n\n"
-        "Напишите, пожалуйста, ваше имя и фамилию одним сообщением.\n\n"
-        "Пример: Анна Иванова"
-    )
-    
+    text = "<b>Как к вам обращаться?</b> ✨\n\nНапишите ваше <b>Имя и Фамилию</b>.\n<i>Пример: Анна Иванова</i>"
     sent_msg = await callback.message.answer(text, parse_mode="HTML")
     await state.update_data(msg_to_delete=sent_msg.message_id)
     await state.set_state(Registration.waiting_for_name)
@@ -209,13 +176,14 @@ async def get_name(message: types.Message, state: FSMContext):
     except: pass
     await message.delete()
     await state.update_data(name=message.text)
-    await message.answer(f"Приятно познакомиться! Выберите день:", reply_markup=days_menu_kb("curr"))
+    text = f"<b>Приятно познакомиться, {message.text}!</b> 😊\n\nВыберите подходящий <b>день для записи:</b>"
+    await message.answer(text, reply_markup=days_menu_kb("curr"), parse_mode="HTML")
     await state.set_state(None)
 
 @dp.callback_query(F.data.startswith("week_"))
 async def switch_week(callback: types.CallbackQuery):
     week_prefix = callback.data.split("_")[1]
-    await callback.message.edit_text("Выберите день:", reply_markup=days_menu_kb(week_prefix))
+    await callback.message.edit_text("<b>Выберите день для записи:</b>", reply_markup=days_menu_kb(week_prefix), parse_mode="HTML")
 
 @dp.callback_query(F.data.startswith("day_"))
 async def select_day(callback: types.CallbackQuery, state: FSMContext):
@@ -224,7 +192,8 @@ async def select_day(callback: types.CallbackQuery, state: FSMContext):
     dates = get_week_dates(week_prefix)
     day_label = next(d["label"] for d in dates if d["callback"] == callback.data)
     await state.update_data(week_prefix=week_prefix, day_label=day_label)
-    await callback.message.edit_text(f"📅 {day_label}\nВремя:", reply_markup=time_menu_kb(f"{week_prefix}_{day_key}"))
+    await callback.message.edit_text(f"<b>Выбран день: {day_label}</b> 📅\n\nТеперь выберите <b>время:</b>", 
+                                     reply_markup=time_menu_kb(f"{week_prefix}_{day_key}"), parse_mode="HTML")
 
 @dp.callback_query(F.data.startswith("settime_"))
 async def finalize_booking(callback: types.CallbackQuery, state: FSMContext):
@@ -233,20 +202,19 @@ async def finalize_booking(callback: types.CallbackQuery, state: FSMContext):
     full_key = f"{week_prefix}_{day_key}"
     
     if t_val in db_get_taken_slots(full_key):
-        await callback.answer("Это время уже занято!", show_alert=True)
+        await callback.answer("❌ Это время уже занято!", show_alert=True)
         return
 
     user_data = await state.get_data()
-    name = user_data.get("name", "Клиент")
-    day_label = user_data.get("day_label")
-    
+    name, day_label = user_data.get("name"), user_data.get("day_label")
     db_add_booking(callback.from_user.id, name, day_label, full_key, t_val)
 
-    await callback.message.edit_text(f"✅ Готово!\n👤 {name}\n📅 {day_label}\n⏰ {t_val}", reply_markup=main_menu_kb())
-
+    await callback.message.edit_text(f"✅ <b>Запись успешно создана!</b>\n\n👤 {name}\n📅 {day_label}\n⏰ {t_val}", 
+                                     reply_markup=main_menu_kb(), parse_mode="HTML")
+    
     username = f"@{callback.from_user.username}" if callback.from_user.username else "скрыт"
     try:
-        await bot_orders.send_message(ADMIN_ID, f"🔔 НОВЫЙ ЗАКАЗ!\n👤 {name} ({username})\n📅 {day_label}\n⏰ {t_val}")
+        await bot_orders.send_message(ADMIN_ID, f"🔔 <b>НОВЫЙ ЗАКАЗ!</b>\n\n👤 {name} ({username})\n📅 {day_label}\n⏰ {t_val}", parse_mode="HTML")
     except: pass
     await state.clear()
 
@@ -254,30 +222,41 @@ async def finalize_booking(callback: types.CallbackQuery, state: FSMContext):
 async def delete_booking(callback: types.CallbackQuery):
     record = db_delete_booking(callback.from_user.id)
     if record:
-        name, day_label, _, time_slot = record
-        try:
-            await bot_orders.send_message(ADMIN_ID, f"❌ ОТМЕНА\n👤 {name}\n📅 {day_label} {time_slot}")
+        try: await bot_orders.send_message(ADMIN_ID, f"❌ <b>ОТМЕНА ЗАПИСИ</b>\n👤 {record[0]}\n📅 {record[1]} {record[3]}", parse_mode="HTML")
         except: pass
-        await callback.message.edit_text("Запись отменена ✅", reply_markup=main_menu_kb())
+        await callback.message.edit_text("<b>Запись отменена</b> ✅\nБудем ждать вас в другой раз!", reply_markup=main_menu_kb(), parse_mode="HTML")
     else:
-        await callback.answer("Записей нет", show_alert=True)
+        await callback.answer("У вас нет активных записей", show_alert=True)
 
 @dp.callback_query(F.data == "check")
 async def check_booking(callback: types.CallbackQuery):
     record = db_get_user_record(callback.from_user.id)
     if record:
-        name, day_label, _, time_slot = record
-        await callback.message.edit_text(f"Ваша запись:\n👤 {name}\n📅 {day_label}\n⏰ {time_slot}", reply_markup=last_menu_kb())
+        await callback.message.edit_text(f"<b>Ваша запись:</b> 🔎\n\n👤 {record[0]}\n📅 {record[1]}\n⏰ {record[3]}", 
+                                         reply_markup=last_menu_kb(), parse_mode="HTML")
     else:
-        await callback.answer("Вы еще не записаны", show_alert=True)
+        await callback.answer("Вы еще не записаны 🤷‍♂️", show_alert=True)
+
+@dp.message(Command("find"))
+async def find_user(message: Message):
+    if message.from_user.id != ADMIN_ID: return
+    args = message.text.split()
+    if len(args) < 2:
+        await message.answer("Введите ID. Пример: <code>/find 1234567</code>", parse_mode="HTML")
+        return
+    try:
+        chat = await bot.get_chat(args[1])
+        await message.answer(f"🔍 <b>Пользователь найден:</b>\n\n👤 {chat.first_name} {chat.last_name or ''}\n🔗 @{chat.username or 'скрыт'}", parse_mode="HTML")
+    except Exception as e:
+        await message.answer(f"❌ Ошибка: {e}")
 
 @dp.callback_query(F.data == "back_to_main")
 async def back_main(callback: types.CallbackQuery):
-    await callback.message.edit_text("Выберите действие 🤗", reply_markup=main_menu_kb())
+    await callback.message.edit_text("<b>Выберите действие:</b>", reply_markup=main_menu_kb(), parse_mode="HTML")
 
 @dp.callback_query(F.data == "already_booked")
 async def already_booked_info(callback: types.CallbackQuery):
-    await callback.answer("Это время уже занято!", show_alert=True)
+    await callback.answer("Это время уже занято! 🔒", show_alert=True)
 
 async def main():
     logging.basicConfig(level=logging.INFO)
