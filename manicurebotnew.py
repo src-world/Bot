@@ -209,7 +209,7 @@ async def finalize_booking(callback: types.CallbackQuery, state: FSMContext):
     name, day_label = user_data.get("name"), user_data.get("day_label")
     db_add_booking(callback.from_user.id, name, day_label, full_key, t_val)
 
-    await callback.message.edit_text(f"✅ <b>Запись успешно создана!</b>\n\n👤 {name}\n📅 {day_label}\n⏰ {t_val}", 
+    await callback.message.edit_text(f"✅ <b>Запись успешно создана!</b>\n\n👤 {name}\n{day_label}\n⏰ {t_val}", 
                                      reply_markup=main_menu_kb(), parse_mode="HTML")
     
     username = f"@{callback.from_user.username}" if callback.from_user.username else "скрыт"
