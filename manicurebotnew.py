@@ -164,7 +164,7 @@ async def start_reg(callback: types.CallbackQuery, state: FSMContext):
         await callback.answer("⚠️ У вас уже есть активная запись!", show_alert=True)
         return
     await callback.message.delete()
-    text = "<b>Как к вам обращаться?</b> ✨\n\nНапишите ваше <b>Имя и Фамилию</b>\n<i>Пример: Анна Иванова</i>"
+    text = "<b>Как к вам обращаться?</b> ✨\n\nНапишите ваше <b>Имя и Фамилию</b>.\n<i>Пример: Анна Иванова</i>"
     sent_msg = await callback.message.answer(text, parse_mode="HTML")
     await state.update_data(msg_to_delete=sent_msg.message_id)
     await state.set_state(Registration.waiting_for_name)
@@ -183,7 +183,7 @@ async def get_name(message: types.Message, state: FSMContext):
 @dp.callback_query(F.data.startswith("week_"))
 async def switch_week(callback: types.CallbackQuery):
     week_prefix = callback.data.split("_")[1]
-    await callback.message.edit_text(f"<b>Приятно познакомиться, {message.text}!</b> 😊\n\nВыберите подходящий <b>день для записи:</b>", reply_markup=days_menu_kb(week_prefix), parse_mode="HTML")
+    await callback.message.edit_text("<b>Выберите день для записи:</b>", reply_markup=days_menu_kb(week_prefix), parse_mode="HTML")
 
 @dp.callback_query(F.data.startswith("day_"))
 async def select_day(callback: types.CallbackQuery, state: FSMContext):
