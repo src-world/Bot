@@ -259,7 +259,6 @@ async def already_booked_info(callback: types.CallbackQuery):
     await callback.answer("Это время уже занято! 🔒", show_alert=True)
 
 async def main():
-    logging.basicConfig(level=logging.INFO)
     init_db()
     await dp.start_polling(bot)
 
